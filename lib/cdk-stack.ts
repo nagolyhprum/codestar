@@ -70,10 +70,11 @@ export class CdkStack extends cdk.Stack {
       },      
       init: ec2.CloudFormationInit.fromConfigSets({
         configSets: {
-          default: ['yumPreinstall'],
+          default: ['installCodeDeployAgent'],
         },
         configs: {
-          yumPreinstall: new ec2.InitConfig([
+          // https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-linux.html
+          installCodeDeployAgent: new ec2.InitConfig([
             ec2.InitPackage.yum('ruby'),
             ec2.InitPackage.yum('wget'),
             ec2.InitCommand.argvCommand(["cd", "/home/ec2-user"]),

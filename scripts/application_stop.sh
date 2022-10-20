@@ -1,1 +1,2 @@
 forever stopall
+killall node
