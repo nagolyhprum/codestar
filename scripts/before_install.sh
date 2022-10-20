@@ -1,2 +1,2 @@
-sudo apt-get update -y
-sudo apt-get install nodejs -y
+sudo yum update -y
+sudo yum install nodejs -y

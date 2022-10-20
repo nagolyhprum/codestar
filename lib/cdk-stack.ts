@@ -55,6 +55,8 @@ export class CdkStack extends cdk.Stack {
       machineImage: new ec2.AmazonLinuxImage(),
     })
 
+    NextJSBucket.grantReadWrite(NextJSAutoScalingGroup)
+
     const NextJSApplication = new codedeploy.ServerApplication(this, "NextJSApplication", {})
 
     const NextJSDeploymentGroup = new codedeploy.ServerDeploymentGroup(this, "NextJSDeploymentGroup", {
