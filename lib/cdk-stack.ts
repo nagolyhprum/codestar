@@ -6,6 +6,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
+import { GitHubTrigger } from 'aws-cdk-lib/aws-codepipeline-actions';
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -15,7 +16,7 @@ export class CdkStack extends cdk.Stack {
 
     const NextJSLogGroup = new logs.LogGroup(this, "NextJSLogGroup", {})
 
-    const NextJSProject = new codebuild.Project(this, "NextJSProject", {
+    const NextJSProject = new codebuild.Project(this, "NextJSProject", {      
       artifacts: codebuild.Artifacts.s3({
         bucket : NextJSBucket,
         packageZip: true,
@@ -24,7 +25,14 @@ export class CdkStack extends cdk.Stack {
       source: codebuild.Source.gitHub({
         owner : "nagolyhprum",
         repo : "codestar",
-        branchOrRef : "main",        
+        branchOrRef : "main",     
+        webhook: true,
+        webhookTriggersBatchBuild: true,
+        webhookFilters: [
+          codebuild.FilterGroup
+            .inEventOf(codebuild.EventAction.PUSH)
+            .andBranchIs('main')
+        ],
       }),
       logging : {
         cloudWatch : {
@@ -35,7 +43,7 @@ export class CdkStack extends cdk.Stack {
       environment : {        
         buildImage : codebuild.LinuxBuildImage.STANDARD_6_0,
         privileged : true
-      }
+      },      
     })
 
     const NextJSVpc = new ec2.Vpc(this, "NextJSVpc")
