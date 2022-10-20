@@ -1,2 +1,1 @@
-mkdir -r /home/ubuntu/nodejs
-cd /home/ubuntu/nodejs
+npm install --prefix /home/ubuntu/nodejs

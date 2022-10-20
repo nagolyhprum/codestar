@@ -1,2 +1,1 @@
-cd /home/ubuntu/nodejs
-npm start
+npm start --prefix /home/ubuntu/nodejs
