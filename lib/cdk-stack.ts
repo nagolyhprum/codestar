@@ -16,18 +16,19 @@ export class CdkStack extends cdk.Stack {
     const NextJSLogGroup = new logs.LogGroup(this, "NextJSLogGroup", {})
 
     const NextJSProject = new codebuild.Project(this, "NextJSProject", {      
+      badge : true,
       artifacts: codebuild.Artifacts.s3({
         bucket : NextJSBucket,
         packageZip: true,
         includeBuildId : false,        
       }),
-      concurrentBuildLimit : 1,
+      concurrentBuildLimit : 1,      
       source: codebuild.Source.gitHub({
         owner : "nagolyhprum",
         repo : "codestar",
         branchOrRef : "main",     
         webhook: true,
-        webhookTriggersBatchBuild: true,
+        webhookTriggersBatchBuild: false,                
         webhookFilters: [
           codebuild.FilterGroup
             .inEventOf(codebuild.EventAction.PUSH)
@@ -39,10 +40,10 @@ export class CdkStack extends cdk.Stack {
           enabled : true,
           logGroup: NextJSLogGroup
         }
-      },      
+      }, 
       environment : {        
         buildImage : codebuild.LinuxBuildImage.STANDARD_6_0,
-        privileged : true
+        privileged : true,        
       },      
     })
 
