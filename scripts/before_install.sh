@@ -1,2 +1,1 @@
-sudo yum update -y
-sudo yum install nodejs16 -y
+sudo yum install nodejs npm --enablerepo=epel
