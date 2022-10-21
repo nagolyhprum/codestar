@@ -8,6 +8,7 @@ import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { CodeDeployServerDeployAction, S3SourceAction } from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -51,7 +52,7 @@ export class CdkStack extends cdk.Stack {
       },      
     })
 
-    const NextJSVpc = new ec2.Vpc(this, "NextJSVpc", {})
+    const NextJSVpc = new ec2.Vpc(this, "NextJSVpc", {natGateways: 1})
 
     const NextJSSecurityGroup = new ec2.SecurityGroup(this, "NextJSSecurityGroup", {
       vpc : NextJSVpc,    
@@ -64,12 +65,23 @@ export class CdkStack extends cdk.Stack {
       instanceType: new ec2.InstanceType("t3.nano"),
       machineImage: new ec2.AmazonLinuxImage(),
       securityGroup : NextJSSecurityGroup,      
-      keyName : "NextJS",      
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PUBLIC,
-      },          
-      associatePublicIpAddress:true,        
+      keyName : "NextJS",                
     })
+
+    const NextJSLoadBalancer = new elbv2.ApplicationLoadBalancer(this, 'NextJSLoadBalancer', {
+      vpc: NextJSVpc,
+      internetFacing: true,
+    });
+
+    const listener = NextJSLoadBalancer.addListener('Listener', {
+      port: 80,
+      open: true,
+    });
+
+    listener.addTargets('default-target', {
+      port: 80,
+      targets: [NextJSAutoScalingGroup],
+    });
 
     const NextJSApplication = new codedeploy.ServerApplication(this, "NextJSApplication", {})
 
