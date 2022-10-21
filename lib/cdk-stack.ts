@@ -124,26 +124,29 @@ export class CdkStack extends cdk.Stack {
     const NextJSCertificate = Certificate.fromCertificateArn(this, "NextJSCertificate", "arn:aws:acm:us-east-1:796357290755:certificate/e84949cd-9346-4643-a664-98fb4e981766")
 
     const NextJSCloudFront = new cloudfront.CloudFrontWebDistribution(this, "NextJSCloudFront", {      
+      defaultRootObject : "",
       originConfigs : [{
         behaviors : [{
           // compress : true,
           // cachedMethods : cloudfront.CloudFrontAllowedCachedMethods.GET_HEAD,
           allowedMethods : cloudfront.CloudFrontAllowedMethods.ALL,
           // viewerProtocolPolicy : cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          isDefaultBehavior : true
+          isDefaultBehavior : true,          
         }],      
         customOriginSource : {
           originProtocolPolicy : cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-          domainName : NextJSLoadBalancer.loadBalancerDnsName,                    
+          domainName : NextJSLoadBalancer.loadBalancerDnsName,                              
           // originShieldRegion : "us-east-1",
         },                
-        // originShieldRegion : "us-east-1",
-      }],      
+        // originShieldRegion : "us-east-1",        
+      }],            
       enableIpV6 : true,
       httpVersion : HttpVersion.HTTP2,    
       priceClass : cloudfront.PriceClass.PRICE_CLASS_ALL,
-      viewerCertificate : cloudfront.ViewerCertificate.fromAcmCertificate(NextJSCertificate),
-      viewerProtocolPolicy : cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      viewerCertificate : cloudfront.ViewerCertificate.fromAcmCertificate(NextJSCertificate, {
+        aliases : ["next.loganmurphy.us"]
+      }),
+      viewerProtocolPolicy : cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,      
     })
 
     // loganmurphy.us
