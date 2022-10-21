@@ -10,10 +10,11 @@ import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import { CodeDeployServerDeployAction, S3SourceAction } from 'aws-cdk-lib/aws-codepipeline-actions';
-import { HttpVersion } from 'aws-cdk-lib/aws-cloudfront';
+import { CachePolicy, HttpVersion } from 'aws-cdk-lib/aws-cloudfront';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
+import { LoadBalancerV2Origin } from 'aws-cdk-lib/aws-cloudfront-origins';
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -123,30 +124,23 @@ export class CdkStack extends cdk.Stack {
     // loganmurphy.us, *.loganmurphy.us
     const NextJSCertificate = Certificate.fromCertificateArn(this, "NextJSCertificate", "arn:aws:acm:us-east-1:796357290755:certificate/e84949cd-9346-4643-a664-98fb4e981766")
 
-    const NextJSCloudFront = new cloudfront.CloudFrontWebDistribution(this, "NextJSCloudFront", {      
-      defaultRootObject : "",
-      originConfigs : [{
-        behaviors : [{
-          // compress : true,
-          // cachedMethods : cloudfront.CloudFrontAllowedCachedMethods.GET_HEAD,
-          allowedMethods : cloudfront.CloudFrontAllowedMethods.ALL,
-          // viewerProtocolPolicy : cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          isDefaultBehavior : true,          
-        }],      
-        customOriginSource : {
-          originProtocolPolicy : cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-          domainName : NextJSLoadBalancer.loadBalancerDnsName,                              
-          // originShieldRegion : "us-east-1",
-        },                
-        // originShieldRegion : "us-east-1",        
-      }],            
-      enableIpV6 : true,
-      httpVersion : HttpVersion.HTTP2,    
+    const NextJSDistribution = new cloudfront.Distribution(this, "NextJSDistribution", {
+      defaultBehavior : {
+        origin : new LoadBalancerV2Origin(NextJSLoadBalancer, {
+          protocolPolicy : cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+          // originShieldRegion : "us-east-1"
+        }),
+        allowedMethods : cloudfront.AllowedMethods.ALLOW_ALL,
+        compress : true,
+        cachedMethods : cloudfront.CachedMethods.CACHE_GET_HEAD,
+        viewerProtocolPolicy : cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+      },
+      enableIpv6 : true,
+      httpVersion : HttpVersion.HTTP2,
       priceClass : cloudfront.PriceClass.PRICE_CLASS_ALL,
-      viewerCertificate : cloudfront.ViewerCertificate.fromAcmCertificate(NextJSCertificate, {
-        aliases : ["next.loganmurphy.us"]
-      }),
-      viewerProtocolPolicy : cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,      
+      certificate : NextJSCertificate,
+      domainNames : ["next.loganmurphy.us"]
     })
 
     // loganmurphy.us
@@ -157,7 +151,7 @@ export class CdkStack extends cdk.Stack {
     
 		const NextJSRecord = new route53.ARecord(this, "NextJSRecord", {
 			recordName : "next.loganmurphy.us",
-			target : route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(NextJSCloudFront)),
+			target : route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(NextJSDistribution)),
 			zone : NextJSHostedZone,
 		});
   }
