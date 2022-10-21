@@ -9,9 +9,6 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { CodeDeployServerDeployAction, S3SourceAction } from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 
-const REGION = "us-east-1"
-const BUCKET_NAME = `aws-codedeploy-${REGION}`;
-
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -57,34 +54,12 @@ export class CdkStack extends cdk.Stack {
     const NextJSVpc = new ec2.Vpc(this, "NextJSVpc", {})
 
     const NextJSSecurityGroup = new ec2.SecurityGroup(this, "NextJSSecurityGroup", {
-      vpc : NextJSVpc,            
-      allowAllOutbound : true,      
+      vpc : NextJSVpc,    
+      allowAllOutbound : false        
     })
     
-    NextJSSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.allTraffic(), "In")
-    // NextJSSecurityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTraffic(), "Out")
-
-    const NextJSInstance = new ec2.Instance(this, "NextJSInstance", {
-      vpc : NextJSVpc,
-      instanceType: new ec2.InstanceType("t3.nano"),
-      machineImage: new ec2.AmazonLinuxImage(),
-      securityGroup : NextJSSecurityGroup,      
-      keyName : "NextJS",      
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PUBLIC,
-      },      
-      // https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-linux.html
-      // sudo yum install ruby
-      // sudo yum install wget
-      // cd /home/ec2-user
-      // wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
-      // chmod +x ./install
-      // sudo ./install auto
-    })
-    cdk.Tags.of(NextJSInstance).add('version', '1.0.0');
-    const NextJSEIP = new ec2.CfnEIP(this, "NextJSEIP", {
-      instanceId : NextJSInstance.instanceId,                  
-    })
+    NextJSSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), "HTTP In")
+    NextJSSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), "SSH In")
 
     const NextJSAutoScalingGroup = new autoscaling.AutoScalingGroup(this, "NextJSAutoScalingGroup", {
       vpc : NextJSVpc,
@@ -102,9 +77,6 @@ export class CdkStack extends cdk.Stack {
 
     const NextJSDeploymentGroup = new codedeploy.ServerDeploymentGroup(this, "NextJSDeploymentGroup", {
       application : NextJSApplication,   
-      ec2InstanceTags : new codedeploy.InstanceTagSet({
-        "version" : ["1.0.0"]
-      }),
       autoScalingGroups : [NextJSAutoScalingGroup],
     })
 
@@ -130,7 +102,6 @@ export class CdkStack extends cdk.Stack {
         ]
       }]
     })
-    NextJSPipeline.artifactBucket.grantReadWrite(NextJSInstance)    
     NextJSPipeline.artifactBucket.grantReadWrite(NextJSAutoScalingGroup)    
   }
 }
