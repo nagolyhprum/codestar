@@ -1,1 +1,2 @@
-forever start -c "npm start --prefix /home/ubuntu/nodejs" ./
+cd /home/ubuntu/nodejs
+forever start -c "npm start" ./

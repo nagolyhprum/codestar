@@ -92,8 +92,6 @@ export class CdkStack extends cdk.Stack {
       // }),
     })
     cdk.Tags.of(NextJSInstance).add('version', '1.0.0');
-    NextJSBucket.grantReadWrite(NextJSInstance)
-
     const NextJSEIP = new ec2.CfnEIP(this, "NextJSEIP", {
       instanceId : NextJSInstance.instanceId,                  
     })
@@ -115,7 +113,7 @@ export class CdkStack extends cdk.Stack {
             actionName : "Source",
             bucket : NextJSBucket,
             bucketKey : NextJSProject.projectName,
-            output : new Artifact("Source")      
+            output : new Artifact("Source"),            
           })
         ]
       }, {
@@ -124,10 +122,11 @@ export class CdkStack extends cdk.Stack {
           new CodeDeployServerDeployAction({
             actionName : "Deploy",
             deploymentGroup : NextJSDeploymentGroup,
-            input : new Artifact("Source"),                      
+            input : new Artifact("Source"),                                  
           })
         ]
       }]
     })
+    NextJSPipeline.artifactBucket.grantReadWrite(NextJSInstance)    
   }
 }
