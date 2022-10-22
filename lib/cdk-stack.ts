@@ -13,7 +13,7 @@ import { CodeDeployServerDeployAction, S3SourceAction } from 'aws-cdk-lib/aws-co
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
-import { LoadBalancerV2Origin, S3Origin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 
 const HeaderName = "X-Secret";
 const HeaderValue = "958f2310-521b-11ed-bdc3-0242ac120002";
@@ -85,13 +85,21 @@ export class CdkStack extends cdk.Stack {
     // loganmurphy.us, *.loganmurphy.us
     const NextJSCertificate = Certificate.fromCertificateArn(this, "NextJSCertificate", "arn:aws:acm:us-east-1:796357290755:certificate/e84949cd-9346-4643-a664-98fb4e981766")
 
-    const listener = NextJSLoadBalancer.addListener('Listener', {
+    const Http = NextJSLoadBalancer.addListener("Http", {
+      port : 80,
+      open : true
+    })
+    Http.addAction("redirect", {
+      action : elbv2.ListenerAction.redirect({
+        protocol : "HTTPS"
+      })
+    })
+    const Https = NextJSLoadBalancer.addListener('Https', {
       port: 443,
       open: true,
       certificates : [NextJSCertificate],      
     });
-
-    listener.addTargets('application-access', {
+    Https.addTargets('application-access', {
       port: 80,
       targets: [NextJSAutoScalingGroup],
       priority : 1,
@@ -99,6 +107,12 @@ export class CdkStack extends cdk.Stack {
         elbv2.ListenerCondition.httpHeader(HeaderName, [HeaderValue])
       ]
     });
+    Https.addAction("default", {
+      action: elbv2.ListenerAction.fixedResponse(403, {
+        contentType: 'text/plain',
+        messageBody: 'Access Denied',
+      }),
+    })
 
     NextJSAutoScalingGroup.scaleOnRequestCount('requests-per-minute', {
       targetRequestsPerMinute: 60,
@@ -106,13 +120,6 @@ export class CdkStack extends cdk.Stack {
     NextJSAutoScalingGroup.scaleOnCpuUtilization('cpu-util-scaling', {
       targetUtilizationPercent: 75,
     });
-
-    listener.addAction("default", {
-      action: elbv2.ListenerAction.fixedResponse(403, {
-        contentType: 'text/plain',
-        messageBody: 'Access Denied',
-      }),
-    })
 
     const NextJSApplication = new codedeploy.ServerApplication(this, "NextJSApplication", {})
 
@@ -148,7 +155,7 @@ export class CdkStack extends cdk.Stack {
 
     const NextJSDistribution = new cloudfront.Distribution(this, "NextJSDistribution", {
       defaultBehavior : {
-        origin : new LoadBalancerV2Origin(NextJSLoadBalancer, {
+        origin :  new origins.HttpOrigin("elb.loganmurphy.us", {
           protocolPolicy : cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
           customHeaders : {
             [HeaderName] : HeaderValue
@@ -172,6 +179,12 @@ export class CdkStack extends cdk.Stack {
 		const NextJSHostedZone = route53.HostedZone.fromHostedZoneAttributes(this, "NextJSHostedZone", {
 			hostedZoneId : "Z03134683QY493S0RMPB0",
 			zoneName : "loganmurphy.us",
+		});
+    
+		const ELBRecord = new route53.ARecord(this, "ELBRecord", {
+			recordName : "elb.loganmurphy.us",
+			target : route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(NextJSLoadBalancer)),
+			zone : NextJSHostedZone,
 		});
     
 		const NextJSRecord = new route53.ARecord(this, "NextJSRecord", {
