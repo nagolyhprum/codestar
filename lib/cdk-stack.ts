@@ -10,11 +10,13 @@ import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import { CodeDeployServerDeployAction, S3SourceAction } from 'aws-cdk-lib/aws-codepipeline-actions';
-import { CachePolicy, HttpVersion } from 'aws-cdk-lib/aws-cloudfront';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
-import { LoadBalancerV2Origin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { LoadBalancerV2Origin, S3Origin } from 'aws-cdk-lib/aws-cloudfront-origins';
+
+const HeaderName = "X-Secret";
+const HeaderValue = "958f2310-521b-11ed-bdc3-0242ac120002";
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -77,18 +79,40 @@ export class CdkStack extends cdk.Stack {
     // https://bobbyhadz.com/blog/aws-cdk-application-load-balancer
     const NextJSLoadBalancer = new elbv2.ApplicationLoadBalancer(this, 'NextJSLoadBalancer', {
       vpc: NextJSVpc,
-      internetFacing: true,
+      internetFacing: true,      
     });
+    
+    // loganmurphy.us, *.loganmurphy.us
+    const NextJSCertificate = Certificate.fromCertificateArn(this, "NextJSCertificate", "arn:aws:acm:us-east-1:796357290755:certificate/e84949cd-9346-4643-a664-98fb4e981766")
 
     const listener = NextJSLoadBalancer.addListener('Listener', {
-      port: 80,
+      port: 443,
       open: true,
+      certificates : [NextJSCertificate],      
     });
 
-    listener.addTargets('default-target', {
+    listener.addTargets('application-access', {
       port: 80,
       targets: [NextJSAutoScalingGroup],
+      priority : 1,
+      conditions : [
+        elbv2.ListenerCondition.httpHeader(HeaderName, [HeaderValue])
+      ]
     });
+
+    NextJSAutoScalingGroup.scaleOnRequestCount('requests-per-minute', {
+      targetRequestsPerMinute: 60,
+    });
+    NextJSAutoScalingGroup.scaleOnCpuUtilization('cpu-util-scaling', {
+      targetUtilizationPercent: 75,
+    });
+
+    listener.addAction("default", {
+      action: elbv2.ListenerAction.fixedResponse(403, {
+        contentType: 'text/plain',
+        messageBody: 'Access Denied',
+      }),
+    })
 
     const NextJSApplication = new codedeploy.ServerApplication(this, "NextJSApplication", {})
 
@@ -119,17 +143,18 @@ export class CdkStack extends cdk.Stack {
         ]
       }]
     })
+
     NextJSPipeline.artifactBucket.grantReadWrite(NextJSAutoScalingGroup) 
-    
-    // loganmurphy.us, *.loganmurphy.us
-    const NextJSCertificate = Certificate.fromCertificateArn(this, "NextJSCertificate", "arn:aws:acm:us-east-1:796357290755:certificate/e84949cd-9346-4643-a664-98fb4e981766")
 
     const NextJSDistribution = new cloudfront.Distribution(this, "NextJSDistribution", {
       defaultBehavior : {
         origin : new LoadBalancerV2Origin(NextJSLoadBalancer, {
-          protocolPolicy : cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-          // originShieldRegion : "us-east-1"
-        }),
+          protocolPolicy : cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+          customHeaders : {
+            [HeaderName] : HeaderValue
+          }
+          // originShieldRegion : "us-east-1"          
+        }),        
         allowedMethods : cloudfront.AllowedMethods.ALLOW_ALL,
         compress : true,
         cachedMethods : cloudfront.CachedMethods.CACHE_GET_HEAD,
@@ -137,7 +162,7 @@ export class CdkStack extends cdk.Stack {
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
       },
       enableIpv6 : true,
-      httpVersion : HttpVersion.HTTP2,
+      httpVersion : cloudfront.HttpVersion.HTTP2,
       priceClass : cloudfront.PriceClass.PRICE_CLASS_ALL,
       certificate : NextJSCertificate,
       domainNames : ["next.loganmurphy.us"]
