@@ -91,7 +91,8 @@ export class CdkStack extends cdk.Stack {
     })
     Http.addAction("redirect", {
       action : elbv2.ListenerAction.redirect({
-        protocol : "HTTPS"
+        protocol : "HTTPS",
+        port : "443"
       })
     })
     const Https = NextJSLoadBalancer.addListener('Https', {
